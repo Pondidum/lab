@@ -15,6 +15,12 @@ type Baseline[T any] struct {
 	action func(ctx context.Context) (T, error)
 }
 
+func WithBaseline[T any](baseline func(ctx context.Context) (T, error)) Baseline[T] {
+	return Baseline[T]{
+		action: baseline,
+	}
+}
+
 type Experiment[T any] struct {
 	action func(ctx context.Context) (T, error)
 }

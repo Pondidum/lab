@@ -29,9 +29,9 @@ func TestExperiment(t *testing.T) {
 
 	result, err := RunExperiment[thingy](
 		t.Context(),
-		Baseline[thingy]{action: func(ctx context.Context) (thingy, error) {
+		WithBaseline(func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
-		}},
+		}),
 		[]Experiment[thingy]{
 			{action: func(ctx context.Context) (thingy, error) {
 				return expResult1, nil
