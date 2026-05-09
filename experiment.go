@@ -15,7 +15,7 @@ type Baseline[T any] struct {
 	action func(ctx context.Context) (T, error)
 }
 
-func (b *Baseline[T]) Run(ctx context.Context) *Observation[T] {
+func runAction[T any](ctx context.Context, action func(context.Context) (T, error)) *Observation[T] {
 	obs := &Observation[T]{}
 
 	defer func() {
@@ -24,7 +24,7 @@ func (b *Baseline[T]) Run(ctx context.Context) *Observation[T] {
 		}
 	}()
 
-	obs.Result, obs.Err = b.action(ctx)
+	obs.Result, obs.Err = action(ctx)
 
 	return obs
 }
@@ -36,12 +36,12 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], experiments
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-		observations[0] = baseline.Run(ctx)
+		observations[0] = runAction(ctx, baseline.action)
 	})
 
 	for i, exp := range experiments {
 		wg.Go(func() {
-			observations[i+1] = exp.Run(ctx)
+			observations[i+1] = runAction(ctx, exp.action)
 		})
 	}
 
