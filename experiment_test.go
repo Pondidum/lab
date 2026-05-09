@@ -32,7 +32,7 @@ func TestExperiment(t *testing.T) {
 		Baseline[thingy]{action: func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
 		}},
-		[]Baseline[thingy]{
+		[]Experiment[thingy]{
 			{action: func(ctx context.Context) (thingy, error) {
 				return expResult1, nil
 			}},

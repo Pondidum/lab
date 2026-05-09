@@ -15,6 +15,10 @@ type Baseline[T any] struct {
 	action func(ctx context.Context) (T, error)
 }
 
+type Experiment[T any] struct {
+	action func(ctx context.Context) (T, error)
+}
+
 func runAction[T any](ctx context.Context, action func(context.Context) (T, error)) *Observation[T] {
 	obs := &Observation[T]{}
 
@@ -29,7 +33,7 @@ func runAction[T any](ctx context.Context, action func(context.Context) (T, erro
 	return obs
 }
 
-func RunExperiment[T any](ctx context.Context, baseline Baseline[T], experiments []Baseline[T], comparer func(ctx context.Context, baseline, experiment *Observation[T])) (T, error) {
+func RunExperiment[T any](ctx context.Context, baseline Baseline[T], experiments []Experiment[T], comparer func(ctx context.Context, baseline, experiment *Observation[T])) (T, error) {
 
 	observations := make([]*Observation[T], 1+len(experiments))
 
