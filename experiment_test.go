@@ -13,16 +13,6 @@ type thingy struct {
 
 func TestExperiment(t *testing.T) {
 
-	// result, err := RunExperiment[thingy](
-	// 	t.Context(),
-	// 	WithBaseline(func() {}),
-	// 	WithExperiment(func() {}),
-	// 	WithExperiment(func() {}),
-	// 	WithComparer(func(ctx context.Context, baseline, experiment Observation[thingy]) {
-
-	// 	}),
-	// )
-
 	baseResult := thingy{source: "baseline"}
 	expResult1 := thingy{source: "experiment 1"}
 	compareRan := false
@@ -32,16 +22,14 @@ func TestExperiment(t *testing.T) {
 		WithBaseline(func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
 		}),
-		[]Experiment[thingy]{
-			{action: func(ctx context.Context) (thingy, error) {
-				return expResult1, nil
-			}},
-		},
-		func(ctx context.Context, baseline, experiment *Observation[thingy]) {
+		WithExperiment(func(ctx context.Context) (thingy, error) {
+			return expResult1, nil
+		}),
+		WithComparer(func(ctx context.Context, baseline, experiment *Observation[thingy]) {
 			compareRan = true
 			require.Equal(t, baseResult, baseline.Result)
 			require.Equal(t, expResult1, experiment.Result)
-		},
+		}),
 	)
 
 	require.NoError(t, err)
