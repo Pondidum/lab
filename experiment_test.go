@@ -138,3 +138,42 @@ func TestResults(t *testing.T) {
 
 }
 
+func TestPanics(t *testing.T) {
+
+	t.Run("experiment panics are contained", func(t *testing.T) {
+
+		r, err := RunExperiment(t.Context(),
+			WithBaseline(returns(0, "")),
+			WithExperiment(func(ctx context.Context) (int, error) {
+				panic("seen by compare")
+			}),
+			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+				require.Equal(t, "seen by compare", experiment.Panic)
+			}),
+		)
+
+		require.NoError(t, err)
+		require.Equal(t, 0, r)
+	})
+
+	t.Run("baseline panics are not contained", func(t *testing.T) {
+
+		compareRan := false
+		require.PanicsWithValue(t, "escapes", func() {
+			RunExperiment(t.Context(),
+				WithBaseline(func(ctx context.Context) (int, error) {
+					panic("escapes")
+				}),
+				WithExperiment(func(ctx context.Context) (int, error) {
+					return 1, nil
+				}),
+				WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+					compareRan = true
+					require.Equal(t, "escapes", baseline.Panic)
+				}),
+			)
+		})
+
+		require.True(t, compareRan)
+	})
+}

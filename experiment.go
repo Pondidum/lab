@@ -55,12 +55,14 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-		observations[0] = runAction(ctx, baseline.action)
+		observations[0] = &Observation[T]{}
+		runAction(ctx, observations[0], baseline.action)
 	})
 
 	for i, exp := range opts.experiments {
 		wg.Go(func() {
-			observations[i+1] = runAction(ctx, exp.action)
+			observations[i+1] = &Observation[T]{}
+			runAction(ctx, observations[i+1], exp.action)
 		})
 	}
 
@@ -71,18 +73,19 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 		opts.comparer(ctx, baseObs, obs)
 	}
 
+	if observations[0].Panic != nil {
+		panic(observations[0].Panic)
+	}
+
 	return observations[0].Result, observations[0].Err
 }
-func runAction[T any](ctx context.Context, action func(context.Context) (T, error)) *Observation[T] {
-	obs := &Observation[T]{}
 
+func runAction[T any](ctx context.Context, observation *Observation[T], action func(context.Context) (T, error)) {
 	defer func() {
 		if p := recover(); p != nil {
-			obs.Panic = p
+			observation.Panic = p
 		}
 	}()
 
-	obs.Result, obs.Err = action(ctx)
-
-	return obs
+	observation.Result, observation.Err = action(ctx)
 }
