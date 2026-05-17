@@ -12,25 +12,25 @@ func Render() string {
 		WithBaseline(func(ctx context.Context) (string, error) {
 			return renderList(things) // the old way
 		}),
-		WithExperiment(func(ctx context.Context) (string, error) {
+		WithTrial(func(ctx context.Context) (string, error) {
 			return renderListTpl(things) // the new way
 		}),
-		WithComparer(func(ctx context.Context, baseline, experiment *Observation[thingy]) {
+		WithComparer(func(ctx context.Context, baseline, trial *Observation[thingy]) {
 			// trace what has happened.
 
 			attrs := []attribute.Attribute{
-				attribute.String("lab.name", "replace_html_list"),
-				attribute.Boolean("lab.passed", baseline.Result == experiment.Result),
+				attribute.String("experiment.name", "replace_html_list"),
+				attribute.Boolean("experiment.passed", baseline.Result == experiment.Result),
 			}
 
 			if baseline.Err != nil {
-				attrs := append(attrs, attribute.String("lab.baseline.err", baseline.Err))
+				attrs := append(attrs, attribute.String("experiment.baseline.err", baseline.Err))
 			}
 			if experiment.Err != nil {
-				attrs := append(attrs, attribute.String("lab.experiment.err", experiment.Err))
+				attrs := append(attrs, attribute.String("experiment.trial.err", experiment.Err))
 			}
 
-			_, span := tr.StartSpan(ctx, "lab.comparison")
+			_, span := tr.StartSpan(ctx, "experiment.comparison")
 			span.SetAttributes(attrs)
 			span.End()
 		}),
@@ -47,7 +47,7 @@ func Render() string {
 }
 ```
 
-- Runs both the `Baseline` and the `Experiment`
+- Runs both the `Baseline` and the `Trial`
 - Returns results from `Baseline` ONLY
-- Catches errors and panics from the `Experiment`s
+- Catches errors and panics from the `Trial`s
 - Exposes this to the `Comparer` so you can record what has happened

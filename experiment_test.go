@@ -1,4 +1,4 @@
-package experiment
+package lab
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type thingy struct {
 func TestExperiment(t *testing.T) {
 
 	baseResult := thingy{source: "baseline"}
-	expResult1 := thingy{source: "experiment 1"}
+	trialResult1 := thingy{source: "trial 1"}
 	compareRan := false
 
 	result, err := RunExperiment(
@@ -23,13 +23,13 @@ func TestExperiment(t *testing.T) {
 		WithBaseline(func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
 		}),
-		WithExperiment(func(ctx context.Context) (thingy, error) {
-			return expResult1, nil
+		WithTrial(func(ctx context.Context) (thingy, error) {
+			return trialResult1, nil
 		}),
-		WithComparer(func(ctx context.Context, baseline, experiment *Observation[thingy]) {
+		WithComparer(func(ctx context.Context, baseline, trial *Observation[thingy]) {
 			compareRan = true
 			require.Equal(t, baseResult, baseline.Result)
-			require.Equal(t, expResult1, experiment.Result)
+			require.Equal(t, trialResult1, trial.Result)
 		}),
 	)
 
@@ -40,7 +40,7 @@ func TestExperiment(t *testing.T) {
 
 func TestExperimentsRun(t *testing.T) {
 
-	var baseRan, exp1Ran, exp2Ran bool
+	var baseRan, trial1Ran, trial2Ran bool
 
 	result, err := RunExperiment(
 		t.Context(),
@@ -48,15 +48,15 @@ func TestExperimentsRun(t *testing.T) {
 			baseRan = true
 			return "baseline", nil
 		}),
-		WithExperiment(func(ctx context.Context) (string, error) {
-			exp1Ran = true
-			return "exp1", nil
+		WithTrial(func(ctx context.Context) (string, error) {
+			trial1Ran = true
+			return "trial1", nil
 		}),
-		WithExperiment(func(ctx context.Context) (string, error) {
-			exp2Ran = true
-			return "exp2", nil
+		WithTrial(func(ctx context.Context) (string, error) {
+			trial2Ran = true
+			return "trial2", nil
 		}),
-		WithComparer(func(ctx context.Context, baseline, experiment *Observation[string]) {
+		WithComparer(func(ctx context.Context, baseline, trial *Observation[string]) {
 		}),
 	)
 
@@ -64,8 +64,8 @@ func TestExperimentsRun(t *testing.T) {
 	require.Equal(t, "baseline", result)
 
 	require.True(t, baseRan)
-	require.True(t, exp1Ran)
-	require.True(t, exp2Ran)
+	require.True(t, trial1Ran)
+	require.True(t, trial2Ran)
 }
 
 func returns(val int, err string) func(ctx context.Context) (int, error) {
@@ -79,14 +79,14 @@ func returns(val int, err string) func(ctx context.Context) (int, error) {
 
 func TestComparison(t *testing.T) {
 
-	t.Run("runs for a single experiment", func(t *testing.T) {
+	t.Run("runs for a single trial", func(t *testing.T) {
 		compareRan := false
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithExperiment(returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+			WithTrial(returns(1, "")),
+			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 				require.Equal(t, 0, baseline.Result)
-				require.Equal(t, 1, experiment.Result)
+				require.Equal(t, 1, trial.Result)
 				compareRan = true
 			}),
 		)
@@ -95,15 +95,15 @@ func TestComparison(t *testing.T) {
 		require.True(t, compareRan)
 	})
 
-	t.Run("runs once per experiment", func(t *testing.T) {
+	t.Run("runs once per trial", func(t *testing.T) {
 		values := []int{}
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithExperiment(returns(1, "")),
-			WithExperiment(returns(2, "")),
-			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
-				values = append(values, experiment.Result)
+			WithTrial(returns(1, "")),
+			WithTrial(returns(2, "")),
+			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
+				values = append(values, trial.Result)
 			}),
 		)
 		require.NoError(t, err)
@@ -118,8 +118,8 @@ func TestResults(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithExperiment(returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+			WithTrial(returns(1, "")),
+			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 			}),
 		)
 		require.NoError(t, err)
@@ -129,8 +129,8 @@ func TestResults(t *testing.T) {
 	t.Run("baseline error is returned", func(t *testing.T) {
 		_, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "err-base")),
-			WithExperiment(returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+			WithTrial(returns(1, "")),
+			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 			}),
 		)
 		require.EqualError(t, err, "err-base")
@@ -140,15 +140,15 @@ func TestResults(t *testing.T) {
 
 func TestPanics(t *testing.T) {
 
-	t.Run("experiment panics are contained", func(t *testing.T) {
+	t.Run("trial panics are contained", func(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithExperiment(func(ctx context.Context) (int, error) {
+			WithTrial(func(ctx context.Context) (int, error) {
 				panic("seen by compare")
 			}),
-			WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
-				require.Equal(t, "seen by compare", experiment.Panic)
+			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
+				require.Equal(t, "seen by compare", trial.Panic)
 			}),
 		)
 
@@ -164,10 +164,10 @@ func TestPanics(t *testing.T) {
 				WithBaseline(func(ctx context.Context) (int, error) {
 					panic("escapes")
 				}),
-				WithExperiment(func(ctx context.Context) (int, error) {
+				WithTrial(func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 					compareRan = true
 					require.Equal(t, "escapes", baseline.Panic)
 				}),
@@ -184,10 +184,10 @@ func TestPanics(t *testing.T) {
 				WithBaseline(func(ctx context.Context) (int, error) {
 					return 0, nil
 				}),
-				WithExperiment(func(ctx context.Context) (int, error) {
+				WithTrial(func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 					panic("escapes")
 				}),
 			)
