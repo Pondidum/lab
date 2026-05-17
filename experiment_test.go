@@ -176,4 +176,21 @@ func TestPanics(t *testing.T) {
 
 		require.True(t, compareRan)
 	})
+
+	t.Run("comparison panics are not contained", func(t *testing.T) {
+
+		require.PanicsWithValue(t, "escapes", func() {
+			RunExperiment(t.Context(),
+				WithBaseline(func(ctx context.Context) (int, error) {
+					return 0, nil
+				}),
+				WithExperiment(func(ctx context.Context) (int, error) {
+					return 1, nil
+				}),
+				WithComparer(func(ctx context.Context, baseline, experiment *Observation[int]) {
+					panic("escapes")
+				}),
+			)
+		})
+	})
 }
