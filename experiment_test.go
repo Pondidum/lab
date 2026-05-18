@@ -79,6 +79,15 @@ func returns(val int, err string) func(ctx context.Context) (int, error) {
 
 func TestComparison(t *testing.T) {
 
+	t.Run("a default comparer is used", func(t *testing.T) {
+		r, err := RunExperiment(t.Context(),
+			WithBaseline(returns(0, "")),
+			WithTrial(returns(1, "")),
+		)
+		require.NoError(t, err)
+		require.Equal(t, 0, r)
+	})
+
 	t.Run("runs for a single trial", func(t *testing.T) {
 		compareRan := false
 		r, err := RunExperiment(t.Context(),

@@ -46,7 +46,7 @@ func WithComparer[T any](compare func(ctx context.Context, baseline, trial *Obse
 
 func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Setup[T]) (T, error) {
 
-	opts := &options[T]{}
+	opts := defaultOptions[T]()
 	for _, apply := range setup {
 		apply(opts)
 	}
@@ -78,6 +78,12 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 	}
 
 	return observations[0].Result, observations[0].Err
+}
+
+func defaultOptions[T any]() *options[T] {
+	return &options[T]{
+		comparer: func(ctx context.Context, baseline, trial *Observation[T]) {},
+	}
 }
 
 func runAction[T any](ctx context.Context, observation *Observation[T], action func(context.Context) (T, error)) {
