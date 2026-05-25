@@ -2,7 +2,12 @@ package lab
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 type Observation[T any] struct {
@@ -94,4 +99,38 @@ func runAction[T any](ctx context.Context, observation *Observation[T], action f
 	}()
 
 	observation.Result, observation.Err = action(ctx)
+}
+
+func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]) {
+
+	attrs := []any{}
+
+	if baseline.Err != nil {
+		attrs = append(attrs, slog.String("baseline.error", baseline.Err.Error()))
+	}
+	if trial.Err != nil {
+		attrs = append(attrs, slog.String("trial.error", trial.Err.Error()))
+	}
+	if baseline.Err != nil && trial.Err != nil {
+		attrs = append(attrs, slog.Bool("trial.errors_match", baseline.Err == trial.Err))
+	}
+
+	if trial.Panic != nil {
+		attrs = append(attrs, slog.Any("trial.panic", trial.Panic))
+	}
+
+	resultsMatch := cmp.Equal(baseline.Result, trial.Result, cmpopts.IgnoreUnexported())
+	if !resultsMatch {
+		attrs = append(attrs,
+			slog.Any("baseline.result", baseline.Result),
+			slog.Any("trial.result", trial.Result),
+		)
+	}
+
+	errorsMatch := errors.Is(baseline.Err, trial.Err)
+
+	attrs = append(attrs, slog.Bool("trial.passed", resultsMatch && errorsMatch))
+
+	slog.InfoContext(ctx, "trial results", attrs...)
+
 }
