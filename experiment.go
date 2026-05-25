@@ -111,7 +111,7 @@ func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]
 	if trial.Err != nil {
 		attrs = append(attrs, slog.String("trial.error", trial.Err.Error()))
 	}
-	if baseline.Err != nil && trial.Err != nil {
+	if baseline.Err != nil || trial.Err != nil {
 		attrs = append(attrs, slog.Bool("trial.errors_match", baseline.Err == trial.Err))
 	}
 
@@ -120,6 +120,8 @@ func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]
 	}
 
 	resultsMatch := cmp.Equal(baseline.Result, trial.Result, cmpopts.IgnoreUnexported())
+	attrs = append(attrs, slog.Bool("trial.results_match", resultsMatch))
+
 	if !resultsMatch {
 		attrs = append(attrs,
 			slog.Any("baseline.result", baseline.Result),

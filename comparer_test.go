@@ -2,96 +2,75 @@ package lab
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
+	"io"
 	"log/slog"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var truthTable = `
+BaseResult,BaseError,TrialResult,TrialError,TrialPass,ResultMatch,ErrorMatch
+same,same,,,true,true,true
+one,two,,,false,false,false
+same,same,base,,false,true,false
+same,same,,trial,false,true,false
+same,same,match,match,true,true,true
+one,two,match,match,false,false,true
+`
+
+var errs = map[string]error{
+	"":      nil,
+	"base":  errors.New("baseline error"),
+	"trial": errors.New("trial error"),
+	"match": errors.New("matching error"),
+}
 
 func TestDefaultComparer(t *testing.T) {
 
 	t.Run("comparing value types", func(t *testing.T) {
 
-		commonErr := errors.New("common error")
-		cases := map[string]struct {
-			BaseResult  string
-			BaseErr     error
-			TrialResult string
-			TrialErr    error
-			Expected    map[string]slog.Value
-		}{
-			"matching": {
-				BaseResult:  "same",
-				TrialResult: "same",
-				Expected: map[string]slog.Value{
-					"trial.passed": slog.BoolValue(true),
-				},
-			},
-			"differing": {
-				BaseResult:  "same",
-				TrialResult: "different",
-				Expected: map[string]slog.Value{
-					"trial.passed":    slog.BoolValue(false),
-					"baseline.result": slog.StringValue("same"),
-					"trial.result":    slog.StringValue("different"),
-				},
-			},
-			"baseline error": {
-				BaseResult:  "same",
-				BaseErr:     errors.New("baseline error"),
-				TrialResult: "same",
-				Expected: map[string]slog.Value{
-					"trial.passed":   slog.BoolValue(false),
-					"baseline.error": slog.StringValue("baseline error"),
-				},
-			},
-			"trial error": {
-				BaseResult:  "same",
-				TrialResult: "same",
-				TrialErr:    errors.New("trial error"),
-				Expected: map[string]slog.Value{
-					"trial.passed": slog.BoolValue(false),
-					"trial.error":  slog.StringValue("trial error"),
-				},
-			},
-			"both error, same": {
-				BaseResult:  "same",
-				TrialResult: "same",
-				BaseErr:     commonErr,
-				TrialErr:    commonErr,
-				Expected: map[string]slog.Value{
-					"trial.passed":       slog.BoolValue(true),
-					"baseline.error":     slog.StringValue(commonErr.Error()),
-					"trial.error":        slog.StringValue(commonErr.Error()),
-					"trial.errors_match": slog.BoolValue(true),
-				},
-			},
-			"both error, different": {
-				BaseResult:  "same",
-				TrialResult: "same",
-				BaseErr:     errors.New("baseline error"),
-				TrialErr:    errors.New("trial error"),
-				Expected: map[string]slog.Value{
-					"trial.passed":       slog.BoolValue(false),
-					"baseline.error":     slog.StringValue("baseline error"),
-					"trial.error":        slog.StringValue("trial error"),
-					"trial.errors_match": slog.BoolValue(false),
-				},
-			},
-		}
+		r := csv.NewReader(strings.NewReader(truthTable))
 
-		for name, tc := range cases {
-			t.Run(name, func(t *testing.T) {
-				baseline := &Observation[string]{Result: tc.BaseResult, Err: tc.BaseErr}
-				trial := &Observation[string]{Result: tc.TrialResult, Err: tc.TrialErr}
+		for {
+			record, err := r.Read()
+			if err == io.EOF {
+				return
+			}
+			require.NoError(t, err)
+
+			t.Run(strings.Join(record, ","), func(t *testing.T) {
+
+				baseline := &Observation[string]{
+					Result: record[0],
+					Err:    errs[record[2]],
+				}
+				trial := &Observation[string]{
+					Result: record[1],
+					Err:    errs[record[3]],
+				}
+
+				trialPasses, _ := strconv.ParseBool(record[4])
+				resultsMatch, _ := strconv.ParseBool(record[5])
+				errorsMatch, _ := strconv.ParseBool(record[6])
 
 				log := &InMemoryHandler{}
 				slog.SetDefault(slog.New(log))
 				defaultComparer(t.Context(), baseline, trial)
 
 				attrs := asMap(log.Records[0])
-				assert.Equal(t, tc.Expected, attrs)
+
+				assert.Equal(t, slog.BoolValue(trialPasses), attrs["trial.passed"], "trial.passed")
+				assert.Equal(t, slog.BoolValue(resultsMatch), attrs["trial.results_match"], "trial.results_match")
+
+				if baseline.Err != nil || trial.Err != nil {
+					assert.Equal(t, slog.BoolValue(errorsMatch), attrs["trial.errors_match"], "trial.errors_match")
+				}
 			})
 		}
 	})
