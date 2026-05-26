@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Observation[T any] struct {
@@ -130,9 +132,28 @@ func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]
 	}
 
 	errorsMatch := errors.Is(baseline.Err, trial.Err)
-
 	attrs = append(attrs, slog.Bool("trial.passed", resultsMatch && errorsMatch))
 
-	slog.InfoContext(ctx, "trial results", attrs...)
+	span := trace.SpanFromContext(ctx)
+	span.SetAttributes(asOtelAttributes(attrs)...)
 
+	slog.InfoContext(ctx, "trial results", attrs...)
+}
+
+func asOtelAttributes(attrs []any) []attribute.KeyValue {
+	otel := make([]attribute.KeyValue, 0, len(attrs))
+	for _, a := range attrs {
+		attr, ok := a.(slog.Attr)
+		if !ok {
+			continue
+		}
+
+		switch attr.Value.Kind() {
+		case slog.KindString:
+			otel = append(otel, attribute.String(attr.Key, attr.Value.Resolve().String()))
+		case slog.KindBool:
+			otel = append(otel, attribute.Bool(attr.Key, attr.Value.Resolve().Bool()))
+		}
+	}
+	return otel
 }
