@@ -23,7 +23,7 @@ func TestExperiment(t *testing.T) {
 		WithBaseline(func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
 		}),
-		WithTrial(func(ctx context.Context) (thingy, error) {
+		WithTrial("trial", func(ctx context.Context) (thingy, error) {
 			return trialResult1, nil
 		}),
 		WithComparer(func(ctx context.Context, baseline, trial *Observation[thingy]) {
@@ -48,11 +48,11 @@ func TestExperimentsRun(t *testing.T) {
 			baseRan = true
 			return "baseline", nil
 		}),
-		WithTrial(func(ctx context.Context) (string, error) {
+		WithTrial("trial1", func(ctx context.Context) (string, error) {
 			trial1Ran = true
 			return "trial1", nil
 		}),
-		WithTrial(func(ctx context.Context) (string, error) {
+		WithTrial("trial2", func(ctx context.Context) (string, error) {
 			trial2Ran = true
 			return "trial2", nil
 		}),
@@ -80,7 +80,7 @@ func TestComparison(t *testing.T) {
 	t.Run("a default comparer is used", func(t *testing.T) {
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithTrial(returns(1, "")),
+			WithTrial("", returns(1, "")),
 		)
 		require.NoError(t, err)
 		require.Equal(t, 0, r)
@@ -90,7 +90,7 @@ func TestComparison(t *testing.T) {
 		compareRan := false
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithTrial(returns(1, "")),
+			WithTrial("", returns(1, "")),
 			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 				require.Equal(t, 0, baseline.Result)
 				require.Equal(t, 1, trial.Result)
@@ -107,8 +107,8 @@ func TestComparison(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithTrial(returns(1, "")),
-			WithTrial(returns(2, "")),
+			WithTrial("t1", returns(1, "")),
+			WithTrial("t2", returns(2, "")),
 			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
 				values = append(values, trial.Result)
 			}),
@@ -125,7 +125,7 @@ func TestResults(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithTrial(returns(1, "")),
+			WithTrial("", returns(1, "")),
 		)
 		require.NoError(t, err)
 		require.Equal(t, 0, r)
@@ -134,7 +134,7 @@ func TestResults(t *testing.T) {
 	t.Run("baseline error is returned", func(t *testing.T) {
 		_, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "err-base")),
-			WithTrial(returns(1, "")),
+			WithTrial("", returns(1, "")),
 		)
 		require.EqualError(t, err, "err-base")
 	})
@@ -147,7 +147,7 @@ func TestPanics(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
-			WithTrial(func(ctx context.Context) (int, error) {
+			WithTrial("", func(ctx context.Context) (int, error) {
 				panic("seen by compare")
 			}),
 			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
@@ -167,7 +167,7 @@ func TestPanics(t *testing.T) {
 				WithBaseline(func(ctx context.Context) (int, error) {
 					panic("escapes")
 				}),
-				WithTrial(func(ctx context.Context) (int, error) {
+				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
 				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
@@ -187,7 +187,7 @@ func TestPanics(t *testing.T) {
 				WithBaseline(func(ctx context.Context) (int, error) {
 					return 0, nil
 				}),
-				WithTrial(func(ctx context.Context) (int, error) {
+				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
 				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {

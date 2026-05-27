@@ -13,6 +13,7 @@ import (
 )
 
 type Observation[T any] struct {
+	Name   string
 	Result T
 	Err    error
 	Panic  any
@@ -29,6 +30,7 @@ func WithBaseline[T any](baseline func(ctx context.Context) (T, error)) Baseline
 }
 
 type Trial[T any] struct {
+	name   string
 	action func(ctx context.Context) (T, error)
 }
 
@@ -39,9 +41,9 @@ type options[T any] struct {
 
 type Setup[T any] func(s *options[T])
 
-func WithTrial[T any](trial func(ctx context.Context) (T, error)) Setup[T] {
+func WithTrial[T any](name string, trial func(ctx context.Context) (T, error)) Setup[T] {
 	return func(s *options[T]) {
-		s.trials = append(s.trials, Trial[T]{trial})
+		s.trials = append(s.trials, Trial[T]{name, trial})
 	}
 }
 
@@ -62,13 +64,13 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-		observations[0] = &Observation[T]{}
+		observations[0] = &Observation[T]{Name: "baseline"}
 		runAction(ctx, observations[0], baseline.action)
 	})
 
 	for i, exp := range opts.trials {
 		wg.Go(func() {
-			observations[i+1] = &Observation[T]{}
+			observations[i+1] = &Observation[T]{Name: exp.name}
 			runAction(ctx, observations[i+1], exp.action)
 		})
 	}
@@ -133,6 +135,7 @@ func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]
 
 	errorsMatch := errors.Is(baseline.Err, trial.Err)
 	attrs = append(attrs, slog.Bool("trial.passed", resultsMatch && errorsMatch))
+	attrs = append(attrs, slog.String("trial.name", trial.Name))
 
 	span := trace.SpanFromContext(ctx)
 	span.SetAttributes(asOtelAttributes(attrs)...)
