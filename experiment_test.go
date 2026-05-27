@@ -56,8 +56,6 @@ func TestExperimentsRun(t *testing.T) {
 			trial2Ran = true
 			return "trial2", nil
 		}),
-		WithComparer(func(ctx context.Context, baseline, trial *Observation[string]) {
-		}),
 	)
 
 	require.NoError(t, err)
@@ -128,8 +126,6 @@ func TestResults(t *testing.T) {
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
 			WithTrial(returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
-			}),
 		)
 		require.NoError(t, err)
 		require.Equal(t, 0, r)
@@ -139,8 +135,6 @@ func TestResults(t *testing.T) {
 		_, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "err-base")),
 			WithTrial(returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) {
-			}),
 		)
 		require.EqualError(t, err, "err-base")
 	})

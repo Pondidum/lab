@@ -89,7 +89,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 func defaultOptions[T any]() *options[T] {
 	return &options[T]{
-		comparer: func(ctx context.Context, baseline, trial *Observation[T]) {},
+		comparer: defaultComparer[T],
 	}
 }
 
