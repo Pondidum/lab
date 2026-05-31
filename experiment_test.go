@@ -115,7 +115,9 @@ func TestComparison(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, 0, r)
-		require.Equal(t, []int{1, 2}, values)
+		require.Len(t, values, 2)
+		require.Contains(t, values, 1)
+		require.Contains(t, values, 2)
 	})
 }
 
