@@ -69,12 +69,12 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 		apply(opts)
 	}
 
-	observations := make([]*Observation[T], 1+len(opts.trials))
+	baseObs := &Observation[T]{Name: "baseline"}
+	observations := make([]*Observation[T], len(opts.trials))
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-		observations[0] = &Observation[T]{Name: "baseline"}
-		runAction(ctx, observations[0], baseline.action)
+		runAction(ctx, baseObs, baseline.action)
 	})
 
 	enabledTrials := make(map[int]Trial[T], len(opts.trials))
@@ -86,20 +86,16 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	for i, exp := range enabledTrials {
 		wg.Go(func() {
-			observations[i+1] = &Observation[T]{Name: exp.name}
-			runAction(ctx, observations[i+1], exp.action)
+			observations[i] = &Observation[T]{Name: exp.name}
+			runAction(ctx, observations[i], exp.action)
 		})
 	}
 
 	wg.Wait()
 
-	baseObs := observations[0]
-	if len(enabledTrials) > 0 {
-
-		for i := range enabledTrials {
-			obs := observations[i+1]
-			opts.comparer(ctx, baseObs, obs)
-		}
+	for i := range enabledTrials {
+		obs := observations[i]
+		opts.comparer(ctx, baseObs, obs)
 	}
 
 	if baseObs.Panic != nil {
