@@ -34,9 +34,12 @@ type Trial[T any] struct {
 	action func(ctx context.Context) (T, error)
 }
 
+func (t *Trial[T]) Name() string { return t.name }
+
 type options[T any] struct {
-	trials   []Trial[T]
-	comparer func(ctx context.Context, baseline, trial *Observation[T])
+	trials     []Trial[T]
+	controller func(ctx context.Context, trial Trial[T]) bool
+	comparer   func(ctx context.Context, baseline, trial *Observation[T])
 }
 
 type Setup[T any] func(s *options[T])
@@ -50,6 +53,12 @@ func WithTrial[T any](name string, trial func(ctx context.Context) (T, error)) S
 func WithComparer[T any](compare func(ctx context.Context, baseline, trial *Observation[T])) Setup[T] {
 	return func(s *options[T]) {
 		s.comparer = compare
+	}
+}
+
+func WithTrialController[T any](controller func(ctx context.Context, trial Trial[T]) bool) Setup[T] {
+	return func(s *options[T]) {
+		s.controller = controller
 	}
 }
 
@@ -68,7 +77,14 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 		runAction(ctx, observations[0], baseline.action)
 	})
 
-	for i, exp := range opts.trials {
+	enabledTrials := make(map[int]Trial[T], len(opts.trials))
+	for i, trial := range opts.trials {
+		if opts.controller(ctx, trial) {
+			enabledTrials[i] = trial
+		}
+	}
+
+	for i, exp := range enabledTrials {
 		wg.Go(func() {
 			observations[i+1] = &Observation[T]{Name: exp.name}
 			runAction(ctx, observations[i+1], exp.action)
@@ -78,20 +94,25 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 	wg.Wait()
 
 	baseObs := observations[0]
-	for _, obs := range observations[1:] {
-		opts.comparer(ctx, baseObs, obs)
+	if len(enabledTrials) > 0 {
+
+		for i := range enabledTrials {
+			obs := observations[i+1]
+			opts.comparer(ctx, baseObs, obs)
+		}
 	}
 
-	if observations[0].Panic != nil {
-		panic(observations[0].Panic)
+	if baseObs.Panic != nil {
+		panic(baseObs.Panic)
 	}
 
-	return observations[0].Result, observations[0].Err
+	return baseObs.Result, baseObs.Err
 }
 
 func defaultOptions[T any]() *options[T] {
 	return &options[T]{
-		comparer: defaultComparer[T],
+		comparer:   defaultComparer[T],
+		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
 	}
 }
 
