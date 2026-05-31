@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -18,6 +19,8 @@ type Observation[T any] struct {
 	Err    error
 	Panic  any
 }
+
+type Results = map[string]any
 
 type Baseline[T any] struct {
 	action func(ctx context.Context) (T, error)
@@ -39,7 +42,8 @@ func (t *Trial[T]) Name() string { return t.name }
 type options[T any] struct {
 	trials     []Trial[T]
 	controller func(ctx context.Context, trial Trial[T]) bool
-	comparer   func(ctx context.Context, baseline, trial *Observation[T])
+	comparer   func(ctx context.Context, baseline, trial *Observation[T]) Results
+	reporter   func(ctx context.Context, trials map[string]Results)
 }
 
 type Setup[T any] func(s *options[T])
@@ -50,9 +54,15 @@ func WithTrial[T any](name string, trial func(ctx context.Context) (T, error)) S
 	}
 }
 
-func WithComparer[T any](compare func(ctx context.Context, baseline, trial *Observation[T])) Setup[T] {
+func WithComparer[T any](compare func(ctx context.Context, baseline, trial *Observation[T]) Results) Setup[T] {
 	return func(s *options[T]) {
 		s.comparer = compare
+	}
+}
+
+func WithReporter[T any](reporter func(ctx context.Context, trials map[string]Results)) Setup[T] {
+	return func(s *options[T]) {
+		s.reporter = reporter
 	}
 }
 
@@ -93,10 +103,14 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	wg.Wait()
 
+	results := make(map[string]Results, len(enabledTrials))
+
 	for i := range enabledTrials {
 		obs := observations[i]
-		opts.comparer(ctx, baseObs, obs)
+		results[obs.Name] = opts.comparer(ctx, baseObs, obs)
 	}
+
+	opts.reporter(ctx, results)
 
 	if baseObs.Panic != nil {
 		panic(baseObs.Panic)
@@ -109,6 +123,7 @@ func defaultOptions[T any]() *options[T] {
 	return &options[T]{
 		comparer:   defaultComparer[T],
 		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
+		reporter:   defaultReporter,
 	}
 }
 
@@ -122,58 +137,85 @@ func runAction[T any](ctx context.Context, observation *Observation[T], action f
 	observation.Result, observation.Err = action(ctx)
 }
 
-func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]) {
+func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]) Results {
 
-	attrs := []any{}
+	results := Results{}
 
 	if baseline.Err != nil {
-		attrs = append(attrs, slog.String("baseline.error", baseline.Err.Error()))
+		results["baseline.error"] = baseline.Err.Error()
 	}
 	if trial.Err != nil {
-		attrs = append(attrs, slog.String("trial.error", trial.Err.Error()))
+		results["trial.error"] = trial.Err.Error()
 	}
 	if baseline.Err != nil || trial.Err != nil {
-		attrs = append(attrs, slog.Bool("trial.errors_match", baseline.Err == trial.Err))
+		results["trial.errors_match"] = baseline.Err == trial.Err
 	}
 
 	if trial.Panic != nil {
-		attrs = append(attrs, slog.Any("trial.panic", trial.Panic))
+		results["trial.panic"] = trial.Panic
 	}
 
 	resultsMatch := cmp.Equal(baseline.Result, trial.Result, cmpopts.IgnoreUnexported())
-	attrs = append(attrs, slog.Bool("trial.results_match", resultsMatch))
+	results["trial.results_match"] = resultsMatch
 
 	if !resultsMatch {
-		attrs = append(attrs,
-			slog.Any("baseline.result", baseline.Result),
-			slog.Any("trial.result", trial.Result),
-		)
+		results["baseline.result"] = baseline.Result
+		results["trial.result"] = trial.Result
 	}
 
 	errorsMatch := errors.Is(baseline.Err, trial.Err)
-	attrs = append(attrs, slog.Bool("trial.passed", resultsMatch && errorsMatch))
-	attrs = append(attrs, slog.String("trial.name", trial.Name))
+	results["trial.passed"] = resultsMatch && errorsMatch
+	results["trial.name"] = trial.Name
 
-	span := trace.SpanFromContext(ctx)
-	span.SetAttributes(asOtelAttributes(attrs)...)
-
-	slog.InfoContext(ctx, "trial results", attrs...)
+	return results
 }
 
-func asOtelAttributes(attrs []any) []attribute.KeyValue {
-	otel := make([]attribute.KeyValue, 0, len(attrs))
-	for _, a := range attrs {
-		attr, ok := a.(slog.Attr)
-		if !ok {
-			continue
-		}
+func defaultReporter(ctx context.Context, trials map[string]Results) {
+	traceReporter(ctx, trials)
+	logReporter(ctx, trials)
+}
 
-		switch attr.Value.Kind() {
-		case slog.KindString:
-			otel = append(otel, attribute.String(attr.Key, attr.Value.Resolve().String()))
-		case slog.KindBool:
-			otel = append(otel, attribute.Bool(attr.Key, attr.Value.Resolve().Bool()))
+func traceReporter(ctx context.Context, trials map[string]Results) {
+	tr := otel.Tracer("lab")
+
+	ctx, span := tr.Start(ctx, "experiment")
+	defer span.End()
+
+	for _, trial := range trials {
+
+		attrs := make([]attribute.KeyValue, 0, len(trial))
+		for name, val := range trial {
+
+			switch v := val.(type) {
+			case string:
+				attrs = append(attrs, attribute.String(name, v))
+			case bool:
+				attrs = append(attrs, attribute.Bool(name, v))
+			case int:
+				attrs = append(attrs, attribute.Int(name, v))
+			}
 		}
+		_, s := tr.Start(ctx, "trial", trace.WithAttributes(attrs...))
+		s.End()
 	}
-	return otel
+
+}
+
+func logReporter(ctx context.Context, trials map[string]Results) {
+	for _, trial := range trials {
+
+		attrs := make([]any, 0, len(trial))
+		for name, val := range trial {
+
+			switch v := val.(type) {
+			case string:
+				attrs = append(attrs, slog.String(name, v))
+			case bool:
+				attrs = append(attrs, slog.Bool(name, v))
+			case int:
+				attrs = append(attrs, slog.Int(name, v))
+			}
+		}
+		slog.InfoContext(ctx, "trial results", attrs...)
+	}
 }

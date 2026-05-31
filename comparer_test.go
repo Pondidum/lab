@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace"
 )
@@ -94,7 +95,8 @@ func TestDefaultComparer(t *testing.T) {
 				log := &InMemoryHandler{}
 				slog.SetDefault(slog.New(log))
 
-				defaultComparer(t.Context(), tc.Base, tc.Trial)
+				results := defaultComparer(t.Context(), tc.Base, tc.Trial)
+				defaultReporter(t.Context(), map[string]Results{"": results})
 
 				attrs := slogAttributes(log.Records[0])
 				assert.Equal(t, slog.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
@@ -116,13 +118,17 @@ func TestDefaultComparer(t *testing.T) {
 
 				exporter := &memoryExporter{}
 				tp := trace.NewTracerProvider(trace.WithSyncer(exporter))
+				otel.SetTracerProvider(tp)
 				ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
 				require.True(t, span.IsRecording())
 
-				defaultComparer(ctx, tc.Base, tc.Trial)
+				results := defaultComparer(ctx, tc.Base, tc.Trial)
+				defaultReporter(ctx, map[string]Results{"": results})
 				span.End()
 
-				attrs := otelAttributes(exporter.Spans[0])
+				resultSpan := exporter.ByName("trial")
+				require.NotNil(t, resultSpan)
+				attrs := otelAttributes(*resultSpan)
 
 				assert.Equal(t, attribute.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
 				assert.Equal(t, attribute.BoolValue(tc.ResultsMatch), attrs["trial.results_match"], "trial.results_match")
