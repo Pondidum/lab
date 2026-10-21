@@ -11,11 +11,11 @@ import (
 )
 
 func defaultReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
-	traceReporter(ctx, trials)
-	logReporter(ctx, trials)
+	TraceReporter(ctx, trials)
+	LogReporter(ctx, trials)
 }
 
-func traceReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
+func TraceReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
 	tr := otel.Tracer("lab")
 
 	ctx, span := tr.Start(ctx, "experiment")
@@ -69,7 +69,7 @@ func asOtelAttribute(name string, val any) attribute.KeyValue {
 	}
 }
 
-func logReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
+func LogReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
 
 	for _, analysis := range trials {
 		attrs := []any{
