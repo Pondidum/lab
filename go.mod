@@ -3,7 +3,6 @@ module github.com/pondidum/lab
 go 1.25.0
 
 require (
-	github.com/google/go-cmp v0.7.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/sdk v1.43.0

@@ -3,9 +3,7 @@ package lab
 import (
 	"context"
 	"errors"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
+	"reflect"
 )
 
 type Comparer[T any] func(ctx context.Context, baseline, trial *Observation[T]) Results
@@ -28,7 +26,7 @@ func DefaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]
 		results["trial.panic"] = trial.Panic
 	}
 
-	resultsMatch := cmp.Equal(baseline.Result, trial.Result, cmpopts.IgnoreUnexported())
+	resultsMatch := reflect.DeepEqual(baseline.Result, trial.Result)
 	results["trial.results_match"] = resultsMatch
 
 	if !resultsMatch {
