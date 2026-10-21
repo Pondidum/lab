@@ -3,7 +3,6 @@ package lab
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,7 +11,6 @@ import (
 
 func defaultReporter[T any](ctx context.Context, trials []Analysis[T]) {
 	TraceReporter(ctx, trials)
-	LogReporter(ctx, trials)
 }
 
 func TraceReporter[T any](ctx context.Context, trials []Analysis[T]) {
@@ -66,53 +64,5 @@ func asOtelAttribute(name string, val any) attribute.KeyValue {
 		return attribute.Int(name, v)
 	default:
 		return attribute.String(name, fmt.Sprint(v))
-	}
-}
-
-func LogReporter[T any](ctx context.Context, trials []Analysis[T]) {
-
-	for _, analysis := range trials {
-		attrs := []any{
-			slog.String("trial.name", analysis.Name),
-			slog.Bool("trial.passed", analysis.Passed),
-			slog.Bool("trial.results_match", analysis.ResultsMatch),
-			slog.Bool("trial.errors_match", analysis.ErrorsMatch),
-		}
-
-		if analysis.BaselineError != "" {
-			attrs = append(attrs, slog.String("trial.error", analysis.BaselineError))
-		}
-		if analysis.TrialError != "" {
-			attrs = append(attrs, slog.String("trial.error", analysis.TrialError))
-		}
-		if analysis.TrialPanic != nil {
-			attrs = append(attrs, slog.String("trial.panic", fmt.Sprint(analysis.TrialPanic)))
-		}
-
-		if !analysis.ResultsMatch {
-			attrs = append(attrs,
-				asSlogAttribute("baseline.result", analysis.BaselineResult),
-				asSlogAttribute("trial.result", analysis.TrialResult),
-			)
-		}
-
-		for k, v := range analysis.Attributes {
-			attrs = append(attrs, asSlogAttribute(k, v))
-		}
-
-		slog.InfoContext(ctx, "trial results", attrs...)
-	}
-}
-
-func asSlogAttribute(name string, val any) slog.Attr {
-	switch v := val.(type) {
-	case string:
-		return slog.String(name, v)
-	case bool:
-		return slog.Bool(name, v)
-	case int:
-		return slog.Int(name, v)
-	default:
-		return slog.String(name, fmt.Sprint(v))
 	}
 }
