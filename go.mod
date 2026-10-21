@@ -1,4 +1,4 @@
-module github.com/pondidum/lab
+module go.asamfab.fi/lab
 
 go 1.25.0
 
