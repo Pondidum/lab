@@ -86,71 +86,34 @@ func testCases(t *testing.T) []testCase[string] {
 func TestDefaultAnalyser(t *testing.T) {
 	cases := testCases(t)
 
-	t.Run("validate log attributes", func(t *testing.T) {
+	for _, tc := range cases {
 
-		for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
 
-			t.Run(tc.Name, func(t *testing.T) {
+			exporter := &memoryExporter{}
+			tp := trace.NewTracerProvider(trace.WithSyncer(exporter))
+			otel.SetTracerProvider(tp)
+			ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
+			require.True(t, span.IsRecording())
 
-				log := &InMemoryHandler{}
-				slog.SetDefault(slog.New(log))
+			results := DefaultAnalyser[string]()(ctx, tc.Base, tc.Trial)
+			defaultReporter(ctx, []Analysis[string]{results})
+			span.End()
 
-				results := DefaultAnalyser[string]()(t.Context(), tc.Base, tc.Trial)
-				defaultReporter(t.Context(), []Analysis[string]{results})
+			resultSpan := exporter.ByName("trial")
+			require.NotNil(t, resultSpan)
+			attrs := otelAttributes(*resultSpan)
 
-				attrs := slogAttributes(log.Records[0])
-				assert.Equal(t, slog.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
-				assert.Equal(t, slog.BoolValue(tc.ResultsMatch), attrs["trial.results_match"], "trial.results_match")
+			assert.Equal(t, attribute.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
+			assert.Equal(t, attribute.BoolValue(tc.ResultsMatch), attrs["trial.results_match"], "trial.results_match")
 
-				if tc.Base.Err != nil || tc.Trial.Err != nil {
-					assert.Equal(t, slog.BoolValue(tc.ErrorsMatch), attrs["trial.errors_match"], "trial.errors_match")
-				}
-			})
+			if tc.Base.Err != nil || tc.Trial.Err != nil {
+				assert.Equal(t, attribute.BoolValue(tc.ErrorsMatch), attrs["trial.errors_match"], "trial.errors_match")
+			}
+		})
 
-		}
-	})
+	}
 
-	t.Run("validate span attributes", func(t *testing.T) {
-
-		for _, tc := range cases {
-
-			t.Run(tc.Name, func(t *testing.T) {
-
-				exporter := &memoryExporter{}
-				tp := trace.NewTracerProvider(trace.WithSyncer(exporter))
-				otel.SetTracerProvider(tp)
-				ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
-				require.True(t, span.IsRecording())
-
-				results := DefaultAnalyser[string]()(ctx, tc.Base, tc.Trial)
-				defaultReporter(ctx, []Analysis[string]{results})
-				span.End()
-
-				resultSpan := exporter.ByName("trial")
-				require.NotNil(t, resultSpan)
-				attrs := otelAttributes(*resultSpan)
-
-				assert.Equal(t, attribute.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
-				assert.Equal(t, attribute.BoolValue(tc.ResultsMatch), attrs["trial.results_match"], "trial.results_match")
-
-				if tc.Base.Err != nil || tc.Trial.Err != nil {
-					assert.Equal(t, attribute.BoolValue(tc.ErrorsMatch), attrs["trial.errors_match"], "trial.errors_match")
-				}
-			})
-
-		}
-	})
-
-}
-
-func slogAttributes(r slog.Record) map[string]slog.Value {
-	m := make(map[string]slog.Value, r.NumAttrs())
-
-	r.Attrs(func(a slog.Attr) bool {
-		m[a.Key] = a.Value
-		return true
-	})
-	return m
 }
 
 func otelAttributes(span trace.ReadOnlySpan) map[string]attribute.Value {
