@@ -6,6 +6,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Observation[T any] struct {
@@ -80,10 +81,8 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	tr := otel.Tracer("lab")
 
-	ctx, span := tr.Start(ctx, "experiment")
+	ctx, span := tr.Start(ctx, "experiment", trace.WithAttributes(opts.context...))
 	defer span.End()
-
-	span.SetAttributes()
 
 	baseObs := &Observation[T]{Name: "baseline"}
 	observations := make([]*Observation[T], len(opts.trials))
