@@ -96,7 +96,7 @@ func TestDefaultAnalyser(t *testing.T) {
 				slog.SetDefault(slog.New(log))
 
 				results := DefaultAnalyser(t.Context(), tc.Base, tc.Trial)
-				defaultReporter(t.Context(), map[string]Results{"": results})
+				defaultReporter(t.Context(), map[string]Analysis[string]{"": results})
 
 				attrs := slogAttributes(log.Records[0])
 				assert.Equal(t, slog.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
@@ -123,7 +123,7 @@ func TestDefaultAnalyser(t *testing.T) {
 				require.True(t, span.IsRecording())
 
 				results := DefaultAnalyser(ctx, tc.Base, tc.Trial)
-				defaultReporter(ctx, map[string]Results{"": results})
+				defaultReporter(ctx, map[string]Analysis[string]{"": results})
 				span.End()
 
 				resultSpan := exporter.ByName("trial")

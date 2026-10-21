@@ -2,41 +2,49 @@ package lab
 
 import (
 	"context"
-	"errors"
 	"reflect"
 )
 
-type Analyser[T any] func(ctx context.Context, baseline, trial *Observation[T]) Results
+type Analysis[T any] struct {
+	Name   string
+	Passed bool
 
-func DefaultAnalyser[T any](ctx context.Context, baseline, trial *Observation[T]) Results {
+	BaselineError string
+	TrialError    string
+	ErrorsMatch   bool
+	TrialPanic    any
 
-	results := Results{}
+	BaselineResult T
+	TrialResult    T
+	ResultsMatch   bool
+	Attributes     map[string]any
+}
+
+type Analyser[T any] func(ctx context.Context, baseline, trial *Observation[T]) Analysis[T]
+
+func DefaultAnalyser[T any](ctx context.Context, baseline, trial *Observation[T]) Analysis[T] {
+
+	analysis := Analysis[T]{
+		Name:         trial.Name,
+		ErrorsMatch:  baseline.Err == trial.Err,
+		ResultsMatch: reflect.DeepEqual(baseline.Result, trial.Result),
+	}
+	analysis.Passed = analysis.ResultsMatch && analysis.ErrorsMatch
 
 	if baseline.Err != nil {
-		results["baseline.error"] = baseline.Err.Error()
+		analysis.BaselineError = baseline.Err.Error()
 	}
 	if trial.Err != nil {
-		results["trial.error"] = trial.Err.Error()
+		analysis.TrialError = trial.Err.Error()
 	}
-	if baseline.Err != nil || trial.Err != nil {
-		results["trial.errors_match"] = baseline.Err == trial.Err
-	}
-
 	if trial.Panic != nil {
-		results["trial.panic"] = trial.Panic
+		analysis.TrialPanic = trial.Panic
 	}
 
-	resultsMatch := reflect.DeepEqual(baseline.Result, trial.Result)
-	results["trial.results_match"] = resultsMatch
-
-	if !resultsMatch {
-		results["baseline.result"] = baseline.Result
-		results["trial.result"] = trial.Result
+	if !analysis.ResultsMatch {
+		analysis.BaselineResult = baseline.Result
+		analysis.TrialResult = trial.Result
 	}
 
-	errorsMatch := errors.Is(baseline.Err, trial.Err)
-	results["trial.passed"] = resultsMatch && errorsMatch
-	results["trial.name"] = trial.Name
-
-	return results
+	return analysis
 }

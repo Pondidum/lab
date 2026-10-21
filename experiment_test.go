@@ -26,11 +26,11 @@ func TestExperiment(t *testing.T) {
 		WithTrial("trial", func(ctx context.Context) (thingy, error) {
 			return trialResult1, nil
 		}),
-		WithAnalyser(func(ctx context.Context, baseline, trial *Observation[thingy]) Results {
+		WithAnalyser(func(ctx context.Context, baseline, trial *Observation[thingy]) Analysis[thingy] {
 			compareRan = true
 			require.Equal(t, baseResult, baseline.Result)
 			require.Equal(t, trialResult1, trial.Result)
-			return Results{}
+			return Analysis[thingy]{}
 		}),
 	)
 
@@ -92,11 +92,11 @@ func TestComparison(t *testing.T) {
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", returns(1, "")),
-			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
 				require.Equal(t, 0, baseline.Result)
 				require.Equal(t, 1, trial.Result)
 				compareRan = true
-				return Results{}
+				return Analysis[int]{}
 			}),
 		)
 		require.NoError(t, err)
@@ -111,9 +111,9 @@ func TestComparison(t *testing.T) {
 			WithBaseline(returns(0, "")),
 			WithTrial("t1", returns(1, "")),
 			WithTrial("t2", returns(2, "")),
-			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
 				values = append(values, trial.Result)
-				return Results{}
+				return Analysis[int]{}
 			}),
 		)
 		require.NoError(t, err)
@@ -155,9 +155,9 @@ func TestPanics(t *testing.T) {
 			WithTrial("", func(ctx context.Context) (int, error) {
 				panic("seen by compare")
 			}),
-			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
 				require.Equal(t, "seen by compare", trial.Panic)
-				return Results{}
+				return Analysis[int]{}
 			}),
 		)
 
@@ -176,10 +176,10 @@ func TestPanics(t *testing.T) {
 				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
 					compareRan = true
 					require.Equal(t, "escapes", baseline.Panic)
-					return Results{}
+					return Analysis[int]{}
 				}),
 			)
 		})
@@ -197,7 +197,7 @@ func TestPanics(t *testing.T) {
 				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
 					panic("escapes")
 				}),
 			)

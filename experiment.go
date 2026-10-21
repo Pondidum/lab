@@ -2,6 +2,7 @@ package lab
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -16,8 +17,6 @@ type Observation[T any] struct {
 	Err    error
 	Panic  any
 }
-
-type Results = map[string]any
 
 type Baseline[T any] struct {
 	action func(ctx context.Context) (T, error)
@@ -40,7 +39,7 @@ type options[T any] struct {
 	trials     []Trial[T]
 	controller func(ctx context.Context, trial Trial[T]) bool
 	analyse    Analyser[T]
-	reporter   func(ctx context.Context, trials map[string]Results)
+	reporter   func(ctx context.Context, trials map[string]Analysis[T])
 }
 
 type Setup[T any] func(s *options[T])
@@ -57,7 +56,7 @@ func WithAnalyser[T any](analyse Analyser[T]) Setup[T] {
 	}
 }
 
-func WithReporter[T any](reporter func(ctx context.Context, trials map[string]Results)) Setup[T] {
+func WithReporter[T any](reporter func(ctx context.Context, trials map[string]Analysis[T])) Setup[T] {
 	return func(s *options[T]) {
 		s.reporter = reporter
 	}
@@ -100,7 +99,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	wg.Wait()
 
-	results := make(map[string]Results, len(enabledTrials))
+	results := make(map[string]Analysis[T], len(enabledTrials))
 
 	for i := range enabledTrials {
 		obs := observations[i]
@@ -120,7 +119,7 @@ func defaultOptions[T any]() *options[T] {
 	return &options[T]{
 		analyse:    DefaultAnalyser[T],
 		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
-		reporter:   defaultReporter,
+		reporter:   defaultReporter[T],
 	}
 }
 
@@ -134,52 +133,109 @@ func runAction[T any](ctx context.Context, observation *Observation[T], action f
 	observation.Result, observation.Err = action(ctx)
 }
 
-func defaultReporter(ctx context.Context, trials map[string]Results) {
+func defaultReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
 	traceReporter(ctx, trials)
 	logReporter(ctx, trials)
 }
 
-func traceReporter(ctx context.Context, trials map[string]Results) {
+func traceReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
 	tr := otel.Tracer("lab")
 
 	ctx, span := tr.Start(ctx, "experiment")
 	defer span.End()
 
-	for _, trial := range trials {
-
-		attrs := make([]attribute.KeyValue, 0, len(trial))
-		for name, val := range trial {
-
-			switch v := val.(type) {
-			case string:
-				attrs = append(attrs, attribute.String(name, v))
-			case bool:
-				attrs = append(attrs, attribute.Bool(name, v))
-			case int:
-				attrs = append(attrs, attribute.Int(name, v))
-			}
+	for _, analysis := range trials {
+		attrs := []attribute.KeyValue{
+			attribute.String("trial.name", analysis.Name),
+			attribute.Bool("trial.passed", analysis.Passed),
+			attribute.Bool("trial.results_match", analysis.ResultsMatch),
+			attribute.Bool("trial.errors_match", analysis.ErrorsMatch),
 		}
+
+		if analysis.BaselineError != "" {
+			attrs = append(attrs, attribute.String("trial.error", analysis.BaselineError))
+		}
+		if analysis.TrialError != "" {
+			attrs = append(attrs, attribute.String("trial.error", analysis.TrialError))
+		}
+		if analysis.TrialPanic != nil {
+			attrs = append(attrs, attribute.String("trial.panic", fmt.Sprint(analysis.TrialPanic)))
+		}
+
+		if !analysis.ResultsMatch {
+			attrs = append(attrs,
+				asOtelAttribute("baseline.result", analysis.BaselineResult),
+				asOtelAttribute("trial.result", analysis.TrialResult),
+			)
+		}
+
+		for k, v := range analysis.Attributes {
+			attrs = append(attrs, asOtelAttribute(k, v))
+		}
+
 		_, s := tr.Start(ctx, "trial", trace.WithAttributes(attrs...))
 		s.End()
 	}
 
 }
 
-func logReporter(ctx context.Context, trials map[string]Results) {
-	for _, trial := range trials {
+func asOtelAttribute(name string, val any) attribute.KeyValue {
+	switch v := val.(type) {
+	case string:
+		return attribute.String(name, v)
+	case bool:
+		return attribute.Bool(name, v)
+	case int:
+		return attribute.Int(name, v)
+	default:
+		return attribute.String(name, fmt.Sprint(v))
+	}
+}
 
-		attrs := make([]any, 0, len(trial))
-		for name, val := range trial {
+func logReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
 
-			switch v := val.(type) {
-			case string:
-				attrs = append(attrs, slog.String(name, v))
-			case bool:
-				attrs = append(attrs, slog.Bool(name, v))
-			case int:
-				attrs = append(attrs, slog.Int(name, v))
-			}
+	for _, analysis := range trials {
+		attrs := []any{
+			slog.String("trial.name", analysis.Name),
+			slog.Bool("trial.passed", analysis.Passed),
+			slog.Bool("trial.results_match", analysis.ResultsMatch),
+			slog.Bool("trial.errors_match", analysis.ErrorsMatch),
 		}
+
+		if analysis.BaselineError != "" {
+			attrs = append(attrs, slog.String("trial.error", analysis.BaselineError))
+		}
+		if analysis.TrialError != "" {
+			attrs = append(attrs, slog.String("trial.error", analysis.TrialError))
+		}
+		if analysis.TrialPanic != nil {
+			attrs = append(attrs, slog.String("trial.panic", fmt.Sprint(analysis.TrialPanic)))
+		}
+
+		if !analysis.ResultsMatch {
+			attrs = append(attrs,
+				asSlogAttribute("baseline.result", analysis.BaselineResult),
+				asSlogAttribute("trial.result", analysis.TrialResult),
+			)
+		}
+
+		for k, v := range analysis.Attributes {
+			attrs = append(attrs, asSlogAttribute(k, v))
+		}
+
 		slog.InfoContext(ctx, "trial results", attrs...)
+	}
+}
+
+func asSlogAttribute(name string, val any) slog.Attr {
+	switch v := val.(type) {
+	case string:
+		return slog.String(name, v)
+	case bool:
+		return slog.Bool(name, v)
+	case int:
+		return slog.Int(name, v)
+	default:
+		return slog.String(name, fmt.Sprint(v))
 	}
 }
