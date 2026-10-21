@@ -95,7 +95,7 @@ func TestDefaultComparer(t *testing.T) {
 				log := &InMemoryHandler{}
 				slog.SetDefault(slog.New(log))
 
-				results := defaultComparer(t.Context(), tc.Base, tc.Trial)
+				results := DefaultComparer(t.Context(), tc.Base, tc.Trial)
 				defaultReporter(t.Context(), map[string]Results{"": results})
 
 				attrs := slogAttributes(log.Records[0])
@@ -122,7 +122,7 @@ func TestDefaultComparer(t *testing.T) {
 				ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
 				require.True(t, span.IsRecording())
 
-				results := defaultComparer(ctx, tc.Base, tc.Trial)
+				results := DefaultComparer(ctx, tc.Base, tc.Trial)
 				defaultReporter(ctx, map[string]Results{"": results})
 				span.End()
 

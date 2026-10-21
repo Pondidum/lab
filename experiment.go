@@ -2,12 +2,9 @@ package lab
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -42,7 +39,7 @@ func (t *Trial[T]) Name() string { return t.name }
 type options[T any] struct {
 	trials     []Trial[T]
 	controller func(ctx context.Context, trial Trial[T]) bool
-	comparer   func(ctx context.Context, baseline, trial *Observation[T]) Results
+	comparer   Comparer[T]
 	reporter   func(ctx context.Context, trials map[string]Results)
 }
 
@@ -54,7 +51,7 @@ func WithTrial[T any](name string, trial func(ctx context.Context) (T, error)) S
 	}
 }
 
-func WithComparer[T any](compare func(ctx context.Context, baseline, trial *Observation[T]) Results) Setup[T] {
+func WithComparer[T any](compare Comparer[T]) Setup[T] {
 	return func(s *options[T]) {
 		s.comparer = compare
 	}
@@ -121,7 +118,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 func defaultOptions[T any]() *options[T] {
 	return &options[T]{
-		comparer:   defaultComparer[T],
+		comparer:   DefaultComparer[T],
 		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
 		reporter:   defaultReporter,
 	}
@@ -135,39 +132,6 @@ func runAction[T any](ctx context.Context, observation *Observation[T], action f
 	}()
 
 	observation.Result, observation.Err = action(ctx)
-}
-
-func defaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]) Results {
-
-	results := Results{}
-
-	if baseline.Err != nil {
-		results["baseline.error"] = baseline.Err.Error()
-	}
-	if trial.Err != nil {
-		results["trial.error"] = trial.Err.Error()
-	}
-	if baseline.Err != nil || trial.Err != nil {
-		results["trial.errors_match"] = baseline.Err == trial.Err
-	}
-
-	if trial.Panic != nil {
-		results["trial.panic"] = trial.Panic
-	}
-
-	resultsMatch := cmp.Equal(baseline.Result, trial.Result, cmpopts.IgnoreUnexported())
-	results["trial.results_match"] = resultsMatch
-
-	if !resultsMatch {
-		results["baseline.result"] = baseline.Result
-		results["trial.result"] = trial.Result
-	}
-
-	errorsMatch := errors.Is(baseline.Err, trial.Err)
-	results["trial.passed"] = resultsMatch && errorsMatch
-	results["trial.name"] = trial.Name
-
-	return results
 }
 
 func defaultReporter(ctx context.Context, trials map[string]Results) {
