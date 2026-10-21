@@ -39,7 +39,7 @@ func (t *Trial[T]) Name() string { return t.name }
 type options[T any] struct {
 	trials     []Trial[T]
 	controller func(ctx context.Context, trial Trial[T]) bool
-	comparer   Comparer[T]
+	analyse    Analyser[T]
 	reporter   func(ctx context.Context, trials map[string]Results)
 }
 
@@ -51,9 +51,9 @@ func WithTrial[T any](name string, trial func(ctx context.Context) (T, error)) S
 	}
 }
 
-func WithComparer[T any](compare Comparer[T]) Setup[T] {
+func WithAnalyser[T any](analyse Analyser[T]) Setup[T] {
 	return func(s *options[T]) {
-		s.comparer = compare
+		s.analyse = analyse
 	}
 }
 
@@ -104,7 +104,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	for i := range enabledTrials {
 		obs := observations[i]
-		results[obs.Name] = opts.comparer(ctx, baseObs, obs)
+		results[obs.Name] = opts.analyse(ctx, baseObs, obs)
 	}
 
 	opts.reporter(ctx, results)
@@ -118,7 +118,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 func defaultOptions[T any]() *options[T] {
 	return &options[T]{
-		comparer:   DefaultComparer[T],
+		analyse:    DefaultAnalyser[T],
 		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
 		reporter:   defaultReporter,
 	}

@@ -83,7 +83,7 @@ func testCases(t *testing.T, table string) []testCase[string] {
 	return cases
 }
 
-func TestDefaultComparer(t *testing.T) {
+func TestDefaultAnalyser(t *testing.T) {
 	cases := testCases(t, truthTable)
 
 	t.Run("validate log attributes", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestDefaultComparer(t *testing.T) {
 				log := &InMemoryHandler{}
 				slog.SetDefault(slog.New(log))
 
-				results := DefaultComparer(t.Context(), tc.Base, tc.Trial)
+				results := DefaultAnalyser(t.Context(), tc.Base, tc.Trial)
 				defaultReporter(t.Context(), map[string]Results{"": results})
 
 				attrs := slogAttributes(log.Records[0])
@@ -122,7 +122,7 @@ func TestDefaultComparer(t *testing.T) {
 				ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
 				require.True(t, span.IsRecording())
 
-				results := DefaultComparer(ctx, tc.Base, tc.Trial)
+				results := DefaultAnalyser(ctx, tc.Base, tc.Trial)
 				defaultReporter(ctx, map[string]Results{"": results})
 				span.End()
 

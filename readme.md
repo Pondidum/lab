@@ -15,7 +15,7 @@ func Render() string {
 		WithTrial(func(ctx context.Context) (string, error) {
 			return renderListTpl(things) // the new way
 		}),
-		WithComparer(func(ctx context.Context, baseline, trial *Observation[thingy]) {
+		WithAnalyser(func(ctx context.Context, baseline, trial *Observation[thingy]) {
 			// trace what has happened.
 
 			attrs := []attribute.Attribute{

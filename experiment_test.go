@@ -26,7 +26,7 @@ func TestExperiment(t *testing.T) {
 		WithTrial("trial", func(ctx context.Context) (thingy, error) {
 			return trialResult1, nil
 		}),
-		WithComparer(func(ctx context.Context, baseline, trial *Observation[thingy]) Results {
+		WithAnalyser(func(ctx context.Context, baseline, trial *Observation[thingy]) Results {
 			compareRan = true
 			require.Equal(t, baseResult, baseline.Result)
 			require.Equal(t, trialResult1, trial.Result)
@@ -92,7 +92,7 @@ func TestComparison(t *testing.T) {
 		r, err := RunExperiment(t.Context(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", returns(1, "")),
-			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
 				require.Equal(t, 0, baseline.Result)
 				require.Equal(t, 1, trial.Result)
 				compareRan = true
@@ -111,7 +111,7 @@ func TestComparison(t *testing.T) {
 			WithBaseline(returns(0, "")),
 			WithTrial("t1", returns(1, "")),
 			WithTrial("t2", returns(2, "")),
-			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
 				values = append(values, trial.Result)
 				return Results{}
 			}),
@@ -155,7 +155,7 @@ func TestPanics(t *testing.T) {
 			WithTrial("", func(ctx context.Context) (int, error) {
 				panic("seen by compare")
 			}),
-			WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
 				require.Equal(t, "seen by compare", trial.Panic)
 				return Results{}
 			}),
@@ -176,7 +176,7 @@ func TestPanics(t *testing.T) {
 				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
 					compareRan = true
 					require.Equal(t, "escapes", baseline.Panic)
 					return Results{}
@@ -197,7 +197,7 @@ func TestPanics(t *testing.T) {
 				WithTrial("", func(ctx context.Context) (int, error) {
 					return 1, nil
 				}),
-				WithComparer(func(ctx context.Context, baseline, trial *Observation[int]) Results {
+				WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Results {
 					panic("escapes")
 				}),
 			)

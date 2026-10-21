@@ -6,9 +6,9 @@ import (
 	"reflect"
 )
 
-type Comparer[T any] func(ctx context.Context, baseline, trial *Observation[T]) Results
+type Analyser[T any] func(ctx context.Context, baseline, trial *Observation[T]) Results
 
-func DefaultComparer[T any](ctx context.Context, baseline, trial *Observation[T]) Results {
+func DefaultAnalyser[T any](ctx context.Context, baseline, trial *Observation[T]) Results {
 
 	results := Results{}
 
