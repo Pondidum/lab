@@ -3,6 +3,9 @@ package lab
 import (
 	"context"
 	"sync"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Observation[T any] struct {
@@ -34,6 +37,7 @@ type options[T any] struct {
 	controller func(ctx context.Context, trial Trial[T]) bool
 	analyse    Analyser[T]
 	reporter   func(ctx context.Context, trials []Analysis[T])
+	context    []attribute.KeyValue
 }
 
 type Setup[T any] func(s *options[T])
@@ -50,6 +54,12 @@ func WithAnalyser[T any](analyse Analyser[T]) Setup[T] {
 	}
 }
 
+func WithContext[T any](attr ...attribute.KeyValue) Setup[T] {
+	return func(s *options[T]) {
+		s.context = attr
+	}
+}
+
 func WithReporter[T any](reporter func(ctx context.Context, trials []Analysis[T])) Setup[T] {
 	return func(s *options[T]) {
 		s.reporter = reporter
@@ -63,11 +73,17 @@ func WithTrialController[T any](controller func(ctx context.Context, trial Trial
 }
 
 func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Setup[T]) (T, error) {
-
 	opts := defaultOptions[T]()
 	for _, apply := range setup {
 		apply(opts)
 	}
+
+	tr := otel.Tracer("lab")
+
+	ctx, span := tr.Start(ctx, "experiment")
+	defer span.End()
+
+	span.SetAttributes()
 
 	baseObs := &Observation[T]{Name: "baseline"}
 	observations := make([]*Observation[T], len(opts.trials))

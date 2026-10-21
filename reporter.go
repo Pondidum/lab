@@ -16,9 +16,6 @@ func defaultReporter[T any](ctx context.Context, trials []Analysis[T]) {
 func TraceReporter[T any](ctx context.Context, trials []Analysis[T]) {
 	tr := otel.Tracer("lab")
 
-	ctx, span := tr.Start(ctx, "experiment")
-	defer span.End()
-
 	for _, analysis := range trials {
 		attrs := []attribute.KeyValue{
 			attribute.String("trial.name", analysis.Name),
