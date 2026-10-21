@@ -111,7 +111,7 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 func defaultOptions[T any]() *options[T] {
 	return &options[T]{
-		analyse:    DefaultAnalyser[T],
+		analyse:    DefaultAnalyser[T](),
 		controller: func(ctx context.Context, trial Trial[T]) bool { return true },
 		reporter:   defaultReporter[T],
 	}

@@ -22,12 +22,27 @@ type Analysis[T any] struct {
 
 type Analyser[T any] func(ctx context.Context, baseline, trial *Observation[T]) Analysis[T]
 
-func DefaultAnalyser[T any](ctx context.Context, baseline, trial *Observation[T]) Analysis[T] {
+func DefaultAnalyser[T any]() Analyser[T] {
+	compare := func(base, trial T) bool {
+		return reflect.DeepEqual(base, trial)
+	}
 
+	return func(ctx context.Context, baseline, trial *Observation[T]) Analysis[T] {
+		return analyse(ctx, compare, baseline, trial)
+	}
+}
+
+func CustomCompareAnalyser[T any](compare func(base, trial T) bool) Analyser[T] {
+	return func(ctx context.Context, baseline, trial *Observation[T]) Analysis[T] {
+		return analyse(ctx, compare, baseline, trial)
+	}
+}
+
+func analyse[T any](ctx context.Context, compare func(base, trial T) bool, baseline, trial *Observation[T]) Analysis[T] {
 	analysis := Analysis[T]{
 		Name:         trial.Name,
 		ErrorsMatch:  baseline.Err == trial.Err,
-		ResultsMatch: reflect.DeepEqual(baseline.Result, trial.Result),
+		ResultsMatch: compare(baseline.Result, trial.Result),
 	}
 	analysis.Passed = analysis.ResultsMatch && analysis.ErrorsMatch
 
@@ -47,4 +62,5 @@ func DefaultAnalyser[T any](ctx context.Context, baseline, trial *Observation[T]
 	}
 
 	return analysis
+
 }

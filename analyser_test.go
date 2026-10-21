@@ -95,7 +95,7 @@ func TestDefaultAnalyser(t *testing.T) {
 				log := &InMemoryHandler{}
 				slog.SetDefault(slog.New(log))
 
-				results := DefaultAnalyser(t.Context(), tc.Base, tc.Trial)
+				results := DefaultAnalyser[string]()(t.Context(), tc.Base, tc.Trial)
 				defaultReporter(t.Context(), []Analysis[string]{results})
 
 				attrs := slogAttributes(log.Records[0])
@@ -122,7 +122,7 @@ func TestDefaultAnalyser(t *testing.T) {
 				ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
 				require.True(t, span.IsRecording())
 
-				results := DefaultAnalyser(ctx, tc.Base, tc.Trial)
+				results := DefaultAnalyser[string]()(ctx, tc.Base, tc.Trial)
 				defaultReporter(ctx, []Analysis[string]{results})
 				span.End()
 
