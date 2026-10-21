@@ -33,7 +33,7 @@ type options[T any] struct {
 	trials     []Trial[T]
 	controller func(ctx context.Context, trial Trial[T]) bool
 	analyse    Analyser[T]
-	reporter   func(ctx context.Context, trials map[string]Analysis[T])
+	reporter   func(ctx context.Context, trials []Analysis[T])
 }
 
 type Setup[T any] func(s *options[T])
@@ -50,7 +50,7 @@ func WithAnalyser[T any](analyse Analyser[T]) Setup[T] {
 	}
 }
 
-func WithReporter[T any](reporter func(ctx context.Context, trials map[string]Analysis[T])) Setup[T] {
+func WithReporter[T any](reporter func(ctx context.Context, trials []Analysis[T])) Setup[T] {
 	return func(s *options[T]) {
 		s.reporter = reporter
 	}
@@ -93,11 +93,11 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	wg.Wait()
 
-	results := make(map[string]Analysis[T], len(enabledTrials))
+	results := make([]Analysis[T], 0, len(enabledTrials))
 
 	for i := range enabledTrials {
 		obs := observations[i]
-		results[obs.Name] = opts.analyse(ctx, baseObs, obs)
+		results = append(results, opts.analyse(ctx, baseObs, obs))
 	}
 
 	opts.reporter(ctx, results)

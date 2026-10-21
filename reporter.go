@@ -10,12 +10,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func defaultReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
+func defaultReporter[T any](ctx context.Context, trials []Analysis[T]) {
 	TraceReporter(ctx, trials)
 	LogReporter(ctx, trials)
 }
 
-func TraceReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
+func TraceReporter[T any](ctx context.Context, trials []Analysis[T]) {
 	tr := otel.Tracer("lab")
 
 	ctx, span := tr.Start(ctx, "experiment")
@@ -69,7 +69,7 @@ func asOtelAttribute(name string, val any) attribute.KeyValue {
 	}
 }
 
-func LogReporter[T any](ctx context.Context, trials map[string]Analysis[T]) {
+func LogReporter[T any](ctx context.Context, trials []Analysis[T]) {
 
 	for _, analysis := range trials {
 		attrs := []any{
