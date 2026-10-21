@@ -65,7 +65,7 @@ func parseRow(record []string) testCase[string] {
 	return tc
 }
 
-func testCases(t *testing.T, table string) []testCase[string] {
+func testCases(t *testing.T) []testCase[string] {
 	t.Helper()
 
 	cases := []testCase[string]{}
@@ -84,7 +84,7 @@ func testCases(t *testing.T, table string) []testCase[string] {
 }
 
 func TestDefaultAnalyser(t *testing.T) {
-	cases := testCases(t, truthTable)
+	cases := testCases(t)
 
 	t.Run("validate log attributes", func(t *testing.T) {
 
