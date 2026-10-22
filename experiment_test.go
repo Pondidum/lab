@@ -35,6 +35,7 @@ func TestExperiment(t *testing.T) {
 			require.Equal(t, trialResult1, trial.Result)
 			return Analysis[thingy]{}
 		}),
+		WithContext[thingy](attribute.Int("priority", 5)),
 	)
 
 	require.NoError(t, err)
@@ -45,6 +46,7 @@ func TestExperiment(t *testing.T) {
 
 	attrs := exporter.AttributesFor("experiment")
 	require.Equal(t, attribute.StringValue(t.Name()), attrs["experiment.name"])
+	require.Equal(t, attribute.IntValue(5), attrs["priority"])
 }
 
 func TestExperimentsRun(t *testing.T) {
