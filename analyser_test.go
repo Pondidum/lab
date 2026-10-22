@@ -1,20 +1,15 @@
 package lab
 
 import (
-	"context"
 	"encoding/csv"
 	"errors"
 	"io"
-	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 type testCase[T any] struct {
@@ -89,52 +84,14 @@ func TestDefaultAnalyser(t *testing.T) {
 	for _, tc := range cases {
 
 		t.Run(tc.Name, func(t *testing.T) {
+			analysis := DefaultAnalyser[string]()(t.Context(), tc.Base, tc.Trial)
 
-			exporter := &memoryExporter{}
-			tp := trace.NewTracerProvider(trace.WithSyncer(exporter))
-			otel.SetTracerProvider(tp)
-			ctx, span := tp.Tracer("").Start(t.Context(), "testcase")
-			require.True(t, span.IsRecording())
-
-			results := DefaultAnalyser[string]()(ctx, tc.Base, tc.Trial)
-			defaultReporter(ctx, []Analysis[string]{results})
-			span.End()
-
-			resultSpan := exporter.ByName("trial")
-			require.NotNil(t, resultSpan)
-			attrs := otelAttributes(*resultSpan)
-
-			assert.Equal(t, attribute.BoolValue(tc.Passes), attrs["trial.passed"], "trial.passed")
-			assert.Equal(t, attribute.BoolValue(tc.ResultsMatch), attrs["trial.results_match"], "trial.results_match")
+			assert.Equal(t, tc.Passes, analysis.Passed)
+			assert.Equal(t, tc.ResultsMatch, analysis.ResultsMatch)
 
 			if tc.Base.Err != nil || tc.Trial.Err != nil {
-				assert.Equal(t, attribute.BoolValue(tc.ErrorsMatch), attrs["trial.errors_match"], "trial.errors_match")
+				assert.Equal(t, tc.ErrorsMatch, analysis.ErrorsMatch)
 			}
 		})
-
 	}
-
-}
-
-func otelAttributes(span trace.ReadOnlySpan) map[string]attribute.Value {
-	attrs := make(map[string]attribute.Value, len(span.Attributes()))
-
-	for _, attr := range span.Attributes() {
-		attrs[string(attr.Key)] = attr.Value
-	}
-	return attrs
-}
-
-var _ slog.Handler = &InMemoryHandler{}
-
-type InMemoryHandler struct {
-	Records []slog.Record
-}
-
-func (h *InMemoryHandler) Enabled(context.Context, slog.Level) bool { return true }
-func (h *InMemoryHandler) WithAttrs(attrs []slog.Attr) slog.Handler { return h }
-func (h *InMemoryHandler) WithGroup(name string) slog.Handler       { return h }
-func (h *InMemoryHandler) Handle(ctx context.Context, r slog.Record) error {
-	h.Records = append(h.Records, r)
-	return nil
 }
