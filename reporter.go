@@ -30,7 +30,10 @@ func AttributesFromAnalysis[T any](analysis Analysis[T]) []attribute.KeyValue {
 		attribute.String("trial.name", analysis.Name),
 		attribute.Bool("trial.passed", analysis.Passed),
 		attribute.Bool("trial.results_match", analysis.ResultsMatch),
-		attribute.Bool("trial.errors_match", analysis.ErrorsMatch),
+	}
+
+	if analysis.BaselineError != "" || analysis.TrialError != "" {
+		attrs = append(attrs, attribute.Bool("trial.errors_match", analysis.ErrorsMatch))
 	}
 
 	if analysis.BaselineError != "" {

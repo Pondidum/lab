@@ -26,6 +26,7 @@ func TestTrialController(t *testing.T) {
 		t2, t2Ran := action("trial 2")
 
 		RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(base),
 			WithTrial("first", t1),
 			WithTrial("second", t2))
@@ -42,6 +43,7 @@ func TestTrialController(t *testing.T) {
 		t2, t2Ran := action("trial 2")
 
 		RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(base),
 			WithTrial("first", t1),
 			WithTrial("second", t2),
@@ -61,6 +63,7 @@ func TestTrialController(t *testing.T) {
 		t2, t2Ran := action("trial 2")
 
 		RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(base),
 			WithTrial("first", t1),
 			WithTrial("second", t2),
@@ -81,6 +84,7 @@ func TestTrialController(t *testing.T) {
 		t3, t3Ran := action("trial 3")
 
 		RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(base),
 			WithTrial("first", t1),
 			WithTrial("second", t2),

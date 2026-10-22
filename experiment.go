@@ -73,7 +73,7 @@ func WithTrialController[T any](controller func(ctx context.Context, trial Trial
 	}
 }
 
-func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Setup[T]) (T, error) {
+func RunExperiment[T any](ctx context.Context, name string, baseline Baseline[T], setup ...Setup[T]) (T, error) {
 	opts := defaultOptions[T]()
 	for _, apply := range setup {
 		apply(opts)
@@ -81,7 +81,10 @@ func RunExperiment[T any](ctx context.Context, baseline Baseline[T], setup ...Se
 
 	tr := otel.Tracer("lab")
 
-	ctx, span := tr.Start(ctx, "experiment", trace.WithAttributes(opts.context...))
+	ctx, span := tr.Start(ctx, "experiment",
+		trace.WithAttributes(attribute.String("experiment.name", name)),
+		trace.WithAttributes(opts.context...),
+	)
 	defer span.End()
 
 	baseObs := &Observation[T]{Name: "baseline"}

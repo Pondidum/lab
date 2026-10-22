@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type thingy struct {
@@ -13,13 +14,15 @@ type thingy struct {
 }
 
 func TestExperiment(t *testing.T) {
+	ctx, span, exporter := CreateTracer(t)
 
 	baseResult := thingy{source: "baseline"}
 	trialResult1 := thingy{source: "trial 1"}
 	compareRan := false
 
 	result, err := RunExperiment(
-		t.Context(),
+		ctx,
+		t.Name(),
 		WithBaseline(func(ctx context.Context) (thingy, error) {
 			return baseResult, nil
 		}),
@@ -37,6 +40,11 @@ func TestExperiment(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, baseResult, result)
 	require.True(t, compareRan)
+
+	span.End()
+
+	attrs := exporter.AttributesFor("experiment")
+	require.Equal(t, attribute.StringValue(t.Name()), attrs["experiment.name"])
 }
 
 func TestExperimentsRun(t *testing.T) {
@@ -45,6 +53,7 @@ func TestExperimentsRun(t *testing.T) {
 
 	result, err := RunExperiment(
 		t.Context(),
+		t.Name(),
 		WithBaseline(func(ctx context.Context) (string, error) {
 			baseRan = true
 			return "baseline", nil
@@ -80,6 +89,7 @@ func TestComparison(t *testing.T) {
 
 	t.Run("a default comparer is used", func(t *testing.T) {
 		r, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", returns(1, "")),
 		)
@@ -90,6 +100,7 @@ func TestComparison(t *testing.T) {
 	t.Run("runs for a single trial", func(t *testing.T) {
 		compareRan := false
 		r, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", returns(1, "")),
 			WithAnalyser(func(ctx context.Context, baseline, trial *Observation[int]) Analysis[int] {
@@ -108,6 +119,7 @@ func TestComparison(t *testing.T) {
 		values := []int{}
 
 		r, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "")),
 			WithTrial("t1", returns(1, "")),
 			WithTrial("t2", returns(2, "")),
@@ -129,6 +141,7 @@ func TestResults(t *testing.T) {
 	t.Run("baseline result is returned", func(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", returns(1, "")),
 		)
@@ -138,6 +151,7 @@ func TestResults(t *testing.T) {
 
 	t.Run("baseline error is returned", func(t *testing.T) {
 		_, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "err-base")),
 			WithTrial("", returns(1, "")),
 		)
@@ -151,6 +165,7 @@ func TestPanics(t *testing.T) {
 	t.Run("trial panics are contained", func(t *testing.T) {
 
 		r, err := RunExperiment(t.Context(),
+			t.Name(),
 			WithBaseline(returns(0, "")),
 			WithTrial("", func(ctx context.Context) (int, error) {
 				panic("seen by compare")
@@ -170,6 +185,7 @@ func TestPanics(t *testing.T) {
 		compareRan := false
 		require.PanicsWithValue(t, "escapes", func() {
 			RunExperiment(t.Context(),
+				t.Name(),
 				WithBaseline(func(ctx context.Context) (int, error) {
 					panic("escapes")
 				}),
@@ -191,6 +207,7 @@ func TestPanics(t *testing.T) {
 
 		require.PanicsWithValue(t, "escapes", func() {
 			RunExperiment(t.Context(),
+				t.Name(),
 				WithBaseline(func(ctx context.Context) (int, error) {
 					return 0, nil
 				}),
