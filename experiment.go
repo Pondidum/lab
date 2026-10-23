@@ -88,20 +88,20 @@ func RunExperiment[T any](ctx context.Context, name string, baseline Baseline[T]
 	defer span.End()
 
 	baseObs := &Observation[T]{Name: "baseline"}
-	observations := make([]*Observation[T], len(opts.trials))
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
 		runAction(ctx, baseObs, baseline.action)
 	})
 
-	enabledTrials := make(map[int]Trial[T], len(opts.trials))
-	for i, trial := range opts.trials {
+	enabledTrials := make([]Trial[T], 0, len(opts.trials))
+	for _, trial := range opts.trials {
 		if opts.controller(ctx, trial) {
-			enabledTrials[i] = trial
+			enabledTrials = append(enabledTrials, trial)
 		}
 	}
 
+	observations := make([]*Observation[T], len(enabledTrials))
 	for i, exp := range enabledTrials {
 		wg.Go(func() {
 			observations[i] = &Observation[T]{Name: exp.name}
@@ -111,10 +111,8 @@ func RunExperiment[T any](ctx context.Context, name string, baseline Baseline[T]
 
 	wg.Wait()
 
-	for i := range enabledTrials {
-		obs := observations[i]
+	for _, obs := range observations {
 		analysis := opts.analyse(ctx, baseObs, obs)
-
 		opts.reporter(ctx, analysis)
 	}
 
