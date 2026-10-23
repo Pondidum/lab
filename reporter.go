@@ -9,19 +9,18 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func defaultReporter[T any](ctx context.Context, trials []Analysis[T]) {
+type Reporter[T any] func(ctx context.Context, trials Analysis[T])
+
+func defaultReporter[T any](ctx context.Context, trials Analysis[T]) {
 	TraceReporter(ctx, trials)
 }
 
-func TraceReporter[T any](ctx context.Context, trials []Analysis[T]) {
+func TraceReporter[T any](ctx context.Context, analysis Analysis[T]) {
 	tr := otel.Tracer("lab")
 
-	for _, analysis := range trials {
-
-		attrs := AttributesFromAnalysis[T](analysis)
-		_, s := tr.Start(ctx, "trial", trace.WithAttributes(attrs...))
-		s.End()
-	}
+	attrs := AttributesFromAnalysis[T](analysis)
+	_, s := tr.Start(ctx, "trial", trace.WithAttributes(attrs...))
+	s.End()
 
 }
 
